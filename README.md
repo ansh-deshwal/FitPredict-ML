@@ -297,8 +297,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👤 Author
 
 **Ansh**
-- GitHub: [@yourusername](https://github.com/ansh-deshwal)
-- Project Link: [https://github.com/yourusername/FitPredict-ML](https://github.com/ansh-deshwal/FitPredict-ML)
+- GitHub: ansh-deshwal(https://github.com/ansh-deshwal)
+- Project Link: (https://github.com/ansh-deshwal/FitPredict-ML)
 
 ---
 
