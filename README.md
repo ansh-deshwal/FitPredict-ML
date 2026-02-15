@@ -2,7 +2,7 @@
 
 **Multi-Modal Protein Fitness Prediction using Deep Learning**
 
-[![Status](https://img.shields.io/badge/Status-In%20Progress-orange)](https://github.com/yourusername/FitPredict-ML)
+[![Status](https://img.shields.io/badge/Status-In%20Progress-orange)](https://github.com/ansh-deshwal/FitPredict-ML)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Model](https://img.shields.io/badge/Model-ESM--2%20(650M)-green)](https://github.com/facebookresearch/esm)
 [![Data](https://img.shields.io/badge/Data-ProteinGym-purple)](https://proteingym.org/)
