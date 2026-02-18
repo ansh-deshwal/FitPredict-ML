@@ -24,7 +24,7 @@ from Bio.PDB import PDBParser
 from pathlib import Path
 import urllib.request
 
-BASE_DIR = Path(r"C:\Users\hp694\OneDrive\Documents\Study\Engineering\sem6\DL\project\Model\Deep_Unfold")
+BASE_DIR = Path(__file__).parent
 CSV_PATH = BASE_DIR / "BLAT_ECOLX_Stiffler_2015.csv"
 PDB_ID = "1M40"
 PDB_PATH = BASE_DIR / f"{PDB_ID}.pdb"
