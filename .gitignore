@@ -1,0 +1,5 @@
+venv/
+Data/*.npy
+Data/*.pdb
+__pycache__/
+*.pt
