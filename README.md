@@ -38,7 +38,7 @@ We achieve strong correlation with experimental Deep Mutational Scanning (DMS) d
 | **Stage 2** | Sequence Branch | ✅ **Done** | ρ = 0.719 | Extracted 1280-d ESM-2 embeddings |
 | **Stage 3** | Baseline Models | ✅ **Done** | ρ = 0.719 | Ridge & MLP trained on sequence only |
 | **Stage 4** | Structure Branch | ✅ **Done** | - | Extracted 11 structural features (burial, DSSP, ASA, contact maps, backbone angles) |
-| **Stage 5** | Multi-Modal Fusion | ✅ **Done** | ρ = 0.768 | Sequence (1280-d) + Structure (11-d) fusion |
+| **Stage 5** | Multi-Modal Fusion | ✅ **Done** | ρ = 0.768 | Sequence (1280-d) + Structure (2-d) fusion |
 | **Stage 6** | Evolutionary Branch | ⏳ **Pending** | - | MSA features integration |
 
 ---
