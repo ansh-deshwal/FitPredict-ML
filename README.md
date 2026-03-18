@@ -323,8 +323,8 @@ Components:
 | Ridge (Linear) | ~0.500 | Sequence only | Linear baseline |
 | **MLP (Current)** | **0.719** | Sequence only | Current best |
 | ESM-1v (zero-shot) | ~0.650 | Sequence only | Direct LM predictions |
-| **Multi-modal (Achieved)** | **0.768** ⭐ | Seq + Struct | Sequence (ESM-2) + 11 structural features |
-| Multi-modal (Target) | ~0.750+ | Seq + Struct | Under development |
+| **Multi-modal (Achieved)** | **0.768** ⭐ | Seq + Struct | Sequence (ESM-2) + 2 structural features |
+| Multi-modal (Target) | ~0.760+ | Seq + Struct | Under development, Sequence (ESM-2) + 11 structural features |
 | SOTA Literature | ~0.75-0.80 | Seq + Struct + Evol | Published benchmarks |
 
 **Progress to SOTA:**
