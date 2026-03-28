@@ -37,7 +37,7 @@ This project predicts DMS fitness scores for single-point mutants of β-lactamas
 | **Stage 2** | Sequence Branch | ✅ Done | Extracted 1280-d ESM-2 embeddings |
 | **Stage 3** | Baseline Models | ✅ Done | Ridge (80/20 split) and MLP (70/15/15 split) on embeddings |
 | **Stage 4** | Structure Branch | ✅ Done | Extracted 11 structural features from PDB 1M40 |
-| **Stage 5** | Multi-Modal Fusion | ✅ Done | Sequence + structure fusion model with residual blocks |
+| **Stage 5** | Multi-Modal Fusion | ✅ Done | Sequence + structure fusion model with residual blocks (`train_fusion.py`); improved StructureEncoder variant (`train_fusion_v2.py`) |
 | **Stage 6** | Evolutionary Branch | ⏳ Pending | MSA features |
 
 > **Note on reported numbers:** All ρ values in this README (ρ = 0.719 for MLP, ρ = 0.768 for Fusion) were produced before recent code fixes. The models need to be retrained to produce valid updated numbers.
@@ -98,17 +98,23 @@ FitPredict-ML/
 │   ├── extract_structure_features.py         # PDB structure features → Results/beta_lactamase_structure_features.npy
 │   ├── train_baseline.py                     # Ridge Regression (80/20 split)
 │   ├── train_mlp.py                          # 3-layer MLP (70/15/15 split)
-│   └── train_fusion.py                       # Multi-modal fusion: sequence + structure (70/15/15 split)
+│   ├── train_fusion.py                       # Multi-modal fusion: raw concat(seq+struct), 70/15/15 split
+│   └── train_fusion_v2.py                    # Fusion v2: StructureEncoder (11→64-d), no-leakage normalisation
 │
 ├── Results/
 │   ├── baseline_plot.png                     # Ridge scatter plots
 │   ├── baseline_predictions.csv              # Ridge test predictions
 │   ├── mlp_baseline_plot.png                 # MLP loss curve + scatter plots
 │   ├── mlp_predictions.csv                   # MLP test predictions
-│   ├── fusion_plot.png                       # Fusion loss curve + scatter plots
-│   ├── fusion_predictions.csv                # Fusion test predictions
+│   ├── fusion_plot.png                       # Fusion v1 loss curve + scatter plots
+│   ├── fusion_predictions.csv                # Fusion v1 test predictions
+│   ├── fusion_v2_plot.png                    # Fusion v2 loss curve + scatter plots
+│   ├── fusion_v2_predictions.csv             # Fusion v2 test predictions
 │   ├── beta_lactamase_structure_features.npy # Structural feature matrix (4,996 × 11) — committed
 │   └── beta_lactamase_structure_features.csv # Same, human-readable — committed
+│
+├── Models/
+│   └── best_fusion_v2.pt                     # Best checkpoint from train_fusion_v2.py — gitignored
 │
 ├── ProteinForge Initial.pdf                  # Project proposal document
 ├── proteinfit_progress1.docx                 # Progress notes
@@ -117,7 +123,7 @@ FitPredict-ML/
 └── README.md
 ```
 
-> **Note:** `Data/beta_lactamase_esm2_embeddings.npy` (~25 MB, float32) and model checkpoints (`best_mlp_model.pt`, `best_fusion_model.pt`) are excluded from version control via `.gitignore`. The structural feature files in `Results/` are committed.
+> **Note:** `Data/beta_lactamase_esm2_embeddings.npy` (~25 MB, float32) and model checkpoints (`best_mlp_model.pt`, `best_fusion_model.pt`, `Models/best_fusion_v2.pt`) are excluded from version control via `.gitignore`. The structural feature files in `Results/` are committed.
 
 ---
 
@@ -150,9 +156,10 @@ Output: `Results/beta_lactamase_structure_features.npy` (4,996 × 11). Already c
 ### 3️⃣ Train models
 
 ```bash
-python Scripts/train_baseline.py   # Ridge regression
-python Scripts/train_mlp.py        # MLP
-python Scripts/train_fusion.py     # Multi-modal fusion
+python Scripts/train_baseline.py    # Ridge regression
+python Scripts/train_mlp.py         # MLP
+python Scripts/train_fusion.py      # Multi-modal fusion v1 (raw concat)
+python Scripts/train_fusion_v2.py   # Multi-modal fusion v2 (StructureEncoder, no-leakage normalisation)
 ```
 
 All scripts resolve paths via `Path(__file__)` and can be run from any directory.
@@ -264,9 +271,42 @@ The skip connection is added before the outer ReLU. `struct_dim` is read from `S
 - Scheduler: ReduceLROnPlateau on val loss (factor=0.5, patience=5)
 - Gaussian noise augmentation on embeddings during training (std=0.01)
 - Gradient clipping: max_norm=1.0
-- Structural features: z-score normalised per feature before splitting
+- Structural features: z-score normalised using **train-split mean/std only** (fitted after split — no leakage)
 - Split: 70/15/15 train/val/test (random_state=42); best val Spearman ρ checkpoint reloaded
 - Outputs: `Results/fusion_predictions.csv`, `Results/fusion_plot.png`, `Results/best_fusion_model.pt`
+
+### Phase 3b: Multi-Modal Fusion v2 (`train_fusion_v2.py`)
+
+Improves on v1 in two ways: (1) a learned `StructureEncoder` replaces the raw 11-d concatenation, and (2) normalisation is fitted on the training split only (no leakage).
+
+**Architecture:**
+
+```
+Sequence (1280-d)  ──────────────────────────────────┐
+                                                       ├──> Concat (1344-d)
+Structure (11-d) → StructureEncoder (64-d)  ──────────┘
+                        ↓
+              Linear(1344→512) → BN → ReLU → Dropout(0.3)
+                        ↓
+                ResidualBlock(512)
+                        ↓
+                ResidualBlock(512)
+                        ↓
+        Linear(512→128) → BN → ReLU → Dropout(0.2) → Linear(128→1)
+```
+
+`StructureEncoder`:
+```
+Linear(11→64) → BN → ReLU → Dropout(0.2) → Linear(64→64) → ReLU
+```
+
+`ResidualBlock` is identical to v1 (see above).
+
+**Training configuration:**
+- Same optimizer, loss, batch size, epochs, early stopping, scheduler, noise, and gradient clipping as v1
+- Structural features: z-score normalised using **train-split mean/std only** (S_mean, S_std fitted after split — no leakage)
+- Split: 70/15/15 train/val/test (random_state=42); best val Spearman ρ checkpoint reloaded
+- Outputs: `Results/fusion_v2_predictions.csv`, `Results/fusion_v2_plot.png`, `Models/best_fusion_v2.pt`
 
 ---
 
@@ -280,7 +320,8 @@ The skip connection is added before the outer ReLU. `struct_dim` is read from `S
 | Ridge (Linear) | ~0.500 | Sequence | Linear baseline, 80/20 split |
 | ESM-1v (zero-shot) | ~0.650 | Sequence | Literature estimate |
 | **MLP (3-layer)** | **0.719** | Sequence | Pre-fix, 80/20 split |
-| **Multi-modal Fusion** | **0.768** | Seq + Struct | Pre-fix; needs retraining |
+| **Multi-modal Fusion v1** | **0.768** | Seq + Struct | Pre-fix; needs retraining |
+| **Multi-modal Fusion v2** | TBD | Seq + Struct | StructureEncoder + no-leakage norm; not yet run |
 | SOTA Literature | ~0.75–0.80 | Seq + Struct + Evol | Published benchmarks |
 
 ---
@@ -296,6 +337,7 @@ The skip connection is added before the outer ReLU. `struct_dim` is read from `S
 - [x] Multi-modal fusion network (sequence + structure, residual blocks)
 - [x] 70/15/15 train/val/test split in MLP and Fusion training
 - [x] Best-checkpoint save/reload in MLP and Fusion
+- [x] Fusion v2: StructureEncoder (11→64-d learned projection) + no-leakage normalisation
 
 ### In Progress 🔄
 - [ ] Retrain MLP and Fusion under current code and report updated numbers (Ridge is already correct)

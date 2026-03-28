@@ -156,7 +156,7 @@ print("\n" + "="*50)
 print("Final Evaluation  (best checkpoint)")
 print("="*50)
 
-model.load_state_dict(torch.load(results_dir / "best_mlp_model.pt"))
+model.load_state_dict(torch.load(results_dir / "best_mlp_model.pt", weights_only=True))
 model.eval()
 with torch.no_grad():
     train_preds = model(X_train_t).cpu().numpy().flatten()
