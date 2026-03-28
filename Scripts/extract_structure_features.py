@@ -1,52 +1,20 @@
 '''
 Author: Arjun Sharma
-Date: 15/02/2026
-Code Executing in this file does structure extraction from the embeddings.
-Libraries required to make the code work:
-Pandas, NumPy, Biopython, pathlib, urllib
-What the code does and How it works:
-1) What it does:
-    This code extracts structural features from a protein 3D structure to characterize mutation positions as buried (inside) or 
-    surface-exposed.
-2) How it works:
-1. Download - Fetches the beta-lactamase protein structure (PDB: 1M40) from RCSB database
-2. Parse - Extracts 3D coordinates of all alpha-carbon atoms from the protein structure
-3. Load mutations - Reads CSV file containing mutation data (e.g., "M182T")
-4. Calculate burial - For each mutation position, counts neighboring atoms within 10Å radius
-5. Generate features - Creates two features: burial score (neighbor count) and binary flag (buried if >20 neighbors)
-6. Save - Exports feature matrix as numpy array for downstream analysis
+Date: 15/02/2026 (Updated: 11/03/2026)
+Libraries: Pandas, NumPy, Biopython, pathlib, urllib
 
-The output correlates structural context with mutations to help predict their effects on protein function.
+Extracts 11 structural features per mutation from PDB 1M40 (beta-lactamase TEM-1):
+  1. Download - Fetches the structure (PDB: 1M40) from RCSB
+  2. Parse - Extracts Cα coordinates from chain A
+  3. Load mutations - Reads mutant identifiers from CSV (e.g., "M182T")
+  4. Burial - Counts Cα neighbours within 10 Å; binary buried flag (>20 neighbours)
+  5. DSSP - Secondary structure one-hot (H/E/C), rASA, sin/cos of φ/ψ dihedral angles
+  6. Contact map - Binary Cα–Cα contacts within 8 Å; per-residue contact count
+  7. Output - (N × 11) matrix: [burial_score, is_buried, ss_H, ss_E, ss_C,
+                                rASA, sin_phi, cos_phi, sin_psi, cos_psi, contact_count]
 
-- Update (11/03/2026): 
-Added extended structural features: DSSP secondary structure / backbone angles, accessible surface area (ASA), and pairwise contact maps.
-Date: 11/03/2026
-
-What the code does and How it works:
-1) What it does:
-    This code extracts structural features from a protein 3D structure to characterize mutation positions as buried (inside) or 
-    surface-exposed. It now includes extended structural features: DSSP secondary structure / backbone angles, 
-    accessible surface area (ASA), and pairwise contact maps.
-
-2) How it works:
-1. Download - Fetches the beta-lactamase protein structure (PDB: 1M40) from RCSB database
-2. Parse - Extracts 3D coordinates of all alpha-carbon atoms from the protein structure
-3. Load mutations - Reads CSV file containing mutation data (e.g., "M182T")
-4. Calculate burial - For each mutation position, counts neighboring atoms within 10Å radius
-5. DSSP features - Runs DSSP to extract:
-       - Secondary structure class (H=helix, E=sheet, C=coil/other) as one-hot encoding
-       - Relative accessible surface area (rASA): fraction of surface exposure (0=buried, 1=fully exposed)
-       - Backbone phi/psi dihedral angles (normalised to [-1, 1] range)
-6. Contact map features - Builds a binary Cα–Cα contact map (threshold 8Å) and extracts
-       per-residue contact counts (degree centrality)
-7. Generate features - Assembles all features into a single matrix per mutation:
-       [burial_score, is_buried, ss_H, ss_E, ss_C, rASA, sin_phi, cos_phi, sin_psi, cos_psi, contact_count]
-8. Save - Exports feature matrix as numpy array for downstream analysis
-
-The output correlates structural context with mutations to help predict their effects on protein function.
-
-DSSP must be installed and on PATH (sudo apt-get install dssp on linux/wsl or  conda install -c salilab dssp if you have anaconda).
-If DSSP is unavailable the script falls back to burial-only features and prints a warning.
+DSSP must be on PATH (sudo apt-get install dssp  or  conda install -c salilab dssp).
+Falls back to burial-only features (DSSP columns zeroed) if mkdssp is unavailable.
 '''
 import pandas as pd
 import numpy as np
@@ -134,7 +102,7 @@ def run_dssp(structure, pdb_path: Path):
     try:
         model  = structure[0]
         dssp_bin = shutil.which('mkdssp') or shutil.which('dssp') or '/usr/bin/mkdssp'
-        dssp = DSSP(model, str(pdb_path), dssp=dssp_bin) or DSSP(model, str(pdb_path), dssp='wsl mkdssp')
+        dssp = DSSP(model, str(pdb_path), dssp=dssp_bin)
 
         dssp_data = {}
         for key in dssp.property_keys:

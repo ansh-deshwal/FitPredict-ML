@@ -20,7 +20,7 @@ script_dir = Path(__file__).parent.parent / "Data"
 print("Loading data...")
 df = pd.read_csv(script_dir / "BLAT_ECOLX_Stiffler_2015.csv")
 X  = np.load(script_dir / "beta_lactamase_esm2_embeddings.npy")       # (4996, 1280)
-S  = np.load(script_dir / "beta_lactamase_structure_features.npy")    # (4996, 2)
+S  = np.load(script_dir / "beta_lactamase_structure_features.npy")    # (4996, 11)
 y  = df["DMS_score"].values.astype(float)
 
 print(f"Embeddings:      {X.shape}")
@@ -32,17 +32,24 @@ S_mean = S.mean(axis=0)
 S_std  = S.std(axis=0) + 1e-8
 S_norm = (S - S_mean) / S_std
 
-# ── Train/Test Split (same seed as your MLP baseline) ─────────────────────────
-X_train, X_test, S_train, S_test, y_train, y_test = train_test_split(
+# ── Train/Val/Test Split (70% / 10% / 20%) ────────────────────────────────────
+X_trainval, X_test, S_trainval, S_test, y_trainval, y_test = train_test_split(
     X, S_norm, y, test_size=0.2, random_state=42, shuffle=True
 )
-print(f"\nTraining samples: {len(X_train)}")
-print(f"Test samples:     {len(X_test)}")
+X_train, X_val, S_train, S_val, y_train, y_val = train_test_split(
+    X_trainval, S_trainval, y_trainval, test_size=0.125, random_state=42, shuffle=True
+)  # 0.125 * 0.8 = 0.1 of total
+print(f"\nTraining samples:   {len(X_train)}")
+print(f"Validation samples: {len(X_val)}")
+print(f"Test samples:       {len(X_test)}")
 
 # Convert to tensors
 X_train_t = torch.FloatTensor(X_train).to(device)
 S_train_t = torch.FloatTensor(S_train).to(device)
 y_train_t = torch.FloatTensor(y_train).to(device)
+X_val_t   = torch.FloatTensor(X_val).to(device)
+S_val_t   = torch.FloatTensor(S_val).to(device)
+y_val_t   = torch.FloatTensor(y_val).to(device)
 X_test_t  = torch.FloatTensor(X_test).to(device)
 S_test_t  = torch.FloatTensor(S_test).to(device)
 y_test_t  = torch.FloatTensor(y_test).to(device)
@@ -71,14 +78,14 @@ class ResidualBlock(nn.Module):
 
 class MultiModalFusionModel(nn.Module):
     """
-    Fuses ESM-2 sequence embeddings (1280) + structural features (2).
+    Fuses ESM-2 sequence embeddings (1280) + structural features (11).
 
     Syllabus coverage:
       Unit 1 — Custom feedforward architecture
       Unit 2 — Dropout, L2 weight decay, Gaussian noise, early stopping
       Unit 4 — Residual blocks, BatchNorm1d
     """
-    def __init__(self, seq_dim=1280, struct_dim=2, hidden_dim=512, dropout=0.3):
+    def __init__(self, seq_dim=1280, struct_dim=11, hidden_dim=512, dropout=0.3):
         super().__init__()
         self.projection = nn.Sequential(
             nn.Linear(seq_dim + struct_dim, hidden_dim),
@@ -97,14 +104,14 @@ class MultiModalFusionModel(nn.Module):
         )
 
     def forward(self, seq_emb, struct_feat):
-        x = torch.cat([seq_emb, struct_feat], dim=-1)  # (batch, 1282)
+        x = torch.cat([seq_emb, struct_feat], dim=-1)  # (batch, seq_dim + struct_dim)
         x = self.projection(x)                          # (batch, 512)
         x = self.res_block1(x)                          # (batch, 512)
         x = self.res_block2(x)                          # (batch, 512)
         return self.head(x).squeeze(-1)                 # (batch,)
 
 
-model = MultiModalFusionModel().to(device)
+model = MultiModalFusionModel(struct_dim=S.shape[1]).to(device)
 print("\nModel Architecture:")
 print(model)
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -129,9 +136,8 @@ print("Starting Training")
 print("="*55)
 
 train_losses, val_losses, val_rhos = [], [], []
-best_val_rho      = -1.0
-patience_counter  = 0
-best_test_preds   = None
+best_val_rho     = -1.0
+patience_counter = 0
 
 for epoch in range(EPOCHS):
     # Train
@@ -165,10 +171,10 @@ for epoch in range(EPOCHS):
     # Validate
     model.eval()
     with torch.no_grad():
-        val_preds_t = model(X_test_t, S_test_t)
-        val_loss    = criterion(val_preds_t, y_test_t).item()
+        val_preds_t = model(X_val_t, S_val_t)
+        val_loss    = criterion(val_preds_t, y_val_t).item()
         val_preds   = val_preds_t.cpu().numpy()
-        val_rho, _  = spearmanr(y_test, val_preds)
+        val_rho, _  = spearmanr(y_val, val_preds)
 
     val_losses.append(val_loss)
     val_rhos.append(val_rho)
@@ -186,9 +192,8 @@ for epoch in range(EPOCHS):
 
     # Unit 2: Early stopping
     if is_best:
-        best_val_rho    = val_rho
-        best_test_preds = val_preds.copy()
-        torch.save(model.state_dict(), script_dir / "best_fusion_model.pt")
+        best_val_rho = val_rho
+        torch.save(model.state_dict(), results_dir / "best_fusion_model.pt")
         patience_counter = 0
     else:
         patience_counter += 1
@@ -202,7 +207,7 @@ print("\n" + "="*55)
 print("Final Evaluation  (best checkpoint)")
 print("="*55)
 
-model.load_state_dict(torch.load(script_dir / "best_fusion_model.pt"))
+model.load_state_dict(torch.load(results_dir / "best_fusion_model.pt"))
 model.eval()
 with torch.no_grad():
     train_preds_final = model(X_train_t, S_train_t).cpu().numpy()

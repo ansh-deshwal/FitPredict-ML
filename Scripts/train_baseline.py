@@ -8,12 +8,13 @@ from scipy.stats import spearmanr, pearsonr
 import matplotlib.pyplot as plt
 
 # 1. Load Data and Embeddings
-# Get the folder where this script is located
-script_dir = Path(__file__).parent
+data_dir    = Path(__file__).parent.parent / "Data"
+results_dir = Path(__file__).parent.parent / "Results"
+results_dir.mkdir(exist_ok=True)
 
 print("Loading data...")
-df = pd.read_csv(script_dir / "BLAT_ECOLX_Stiffler_2015.csv")
-X = np.load(script_dir / "beta_lactamase_esm2_embeddings.npy")
+df = pd.read_csv(data_dir / "BLAT_ECOLX_Stiffler_2015.csv")
+X = np.load(data_dir / "beta_lactamase_esm2_embeddings.npy")
 y = df["DMS_score"].values
 
 print(f"Dataset shape: {X.shape}")
@@ -95,7 +96,7 @@ axes[1].grid(True, alpha=0.3)
 plt.tight_layout()
 
 # Save plot
-output_path = script_dir / "baseline_plot.png"
+output_path = results_dir / "baseline_plot.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight')
 print(f"\nSaved plot to '{output_path}'")
 
@@ -105,7 +106,7 @@ results_df = pd.DataFrame({
     'predicted_fitness': test_preds,
     'residual': y_test - test_preds
 })
-results_path = script_dir / "baseline_predictions.csv"
+results_path = results_dir / "baseline_predictions.csv"
 results_df.to_csv(results_path, index=False)
 print(f"Saved predictions to '{results_path}'")
 

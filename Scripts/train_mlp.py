@@ -13,9 +13,12 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Training on: {device}")
 
-script_dir = Path(__file__).parent
-csv_path = script_dir / "BLAT_ECOLX_Stiffler_2015.csv"
-emb_path = script_dir / "beta_lactamase_esm2_embeddings.npy"
+data_dir    = Path(__file__).parent.parent / "Data"
+results_dir = Path(__file__).parent.parent / "Results"
+results_dir.mkdir(exist_ok=True)
+
+csv_path = data_dir / "BLAT_ECOLX_Stiffler_2015.csv"
+emb_path = data_dir / "beta_lactamase_esm2_embeddings.npy"
 
 # 2. Load Data
 print("Loading data...")
@@ -28,18 +31,24 @@ except FileNotFoundError as e:
     print(f"Error: Could not find data files. {e}")
     exit()
 
-# 3. Split Data (80% Train, 20% Test)
-X_train, X_test, y_train, y_test = train_test_split(
+# 3. Split Data (70% Train, 10% Val, 20% Test)
+X_trainval, X_test, y_trainval, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, shuffle=True
 )
-print(f"Training samples: {len(X_train)}")
-print(f"Test samples: {len(X_test)}")
+X_train, X_val, y_train, y_val = train_test_split(
+    X_trainval, y_trainval, test_size=0.125, random_state=42, shuffle=True
+)  # 0.125 * 0.8 = 0.1 of total
+print(f"Training samples:   {len(X_train)}")
+print(f"Validation samples: {len(X_val)}")
+print(f"Test samples:       {len(X_test)}")
 
 # Convert to PyTorch Tensors
 X_train_t = torch.FloatTensor(X_train).to(device)
 y_train_t = torch.FloatTensor(y_train).reshape(-1, 1).to(device)
-X_test_t = torch.FloatTensor(X_test).to(device)
-y_test_t = torch.FloatTensor(y_test).reshape(-1, 1).to(device)
+X_val_t   = torch.FloatTensor(X_val).to(device)
+y_val_t   = torch.FloatTensor(y_val).reshape(-1, 1).to(device)
+X_test_t  = torch.FloatTensor(X_test).to(device)
+y_test_t  = torch.FloatTensor(y_test).reshape(-1, 1).to(device)
 
 # 4. Define the MLP Model
 class ProteinMLP(nn.Module):
@@ -85,6 +94,7 @@ epochs = 50
 train_losses = []
 val_losses = []
 val_rhos = []
+best_val_rho = -1.0
 
 for epoch in range(epochs):
     # ===== TRAINING =====
@@ -116,17 +126,22 @@ for epoch in range(epochs):
     # ===== VALIDATION =====
     model.eval()
     with torch.no_grad():
-        val_outputs = model(X_test_t)
-        val_loss = criterion(val_outputs, y_test_t).item()
+        val_outputs = model(X_val_t)
+        val_loss = criterion(val_outputs, y_val_t).item()
         val_losses.append(val_loss)
-        
+
         val_preds = val_outputs.cpu().numpy().flatten()
-        val_rho, _ = spearmanr(y_test, val_preds)
+        val_rho, _ = spearmanr(y_val, val_preds)
         val_rhos.append(val_rho)
     
     # Step scheduler
     scheduler.step(val_loss)
-    
+
+    # Save best checkpoint
+    if val_rho > best_val_rho:
+        best_val_rho = val_rho
+        torch.save(model.state_dict(), results_dir / "best_mlp_model.pt")
+
     # Print progress
     if (epoch+1) % 5 == 0 or epoch == 0:
         current_lr = optimizer.param_groups[0]['lr']
@@ -136,11 +151,12 @@ for epoch in range(epochs):
               f"Val ρ: {val_rho:.4f} | "
               f"LR: {current_lr:.6f}")
 
-# 7. Final Evaluation
+# 7. Final Evaluation (best checkpoint)
 print("\n" + "="*50)
-print("Final Evaluation")
+print("Final Evaluation  (best checkpoint)")
 print("="*50)
 
+model.load_state_dict(torch.load(results_dir / "best_mlp_model.pt"))
 model.eval()
 with torch.no_grad():
     train_preds = model(X_train_t).cpu().numpy().flatten()
@@ -205,8 +221,8 @@ axes[2].set_title(f'Test Set (Spearman ρ = {test_rho:.3f})')
 axes[2].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(script_dir / "mlp_baseline_plot.png", dpi=300, bbox_inches='tight')
-print(f"\nSaved plot to 'mlp_baseline_plot.png'")
+plt.savefig(results_dir / "mlp_baseline_plot.png", dpi=300, bbox_inches='tight')
+print(f"\nSaved plot to Results/mlp_baseline_plot.png")
 
 # Save predictions
 results_df = pd.DataFrame({
@@ -214,7 +230,7 @@ results_df = pd.DataFrame({
     'predicted_fitness': test_preds,
     'residual': y_test - test_preds
 })
-results_df.to_csv(script_dir / "mlp_predictions.csv", index=False)
-print(f"Saved predictions to 'mlp_predictions.csv'")
+results_df.to_csv(results_dir / "mlp_predictions.csv", index=False)
+print(f"Saved predictions to Results/mlp_predictions.csv")
 
 plt.show()

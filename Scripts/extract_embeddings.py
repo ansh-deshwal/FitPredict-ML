@@ -6,8 +6,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 # 1. Load your clean data with proper path handling
-script_dir = Path(__file__).parent
-df = pd.read_csv(script_dir / "BLAT_ECOLX_Stiffler_2015.csv")
+data_dir = Path(__file__).parent.parent / "Data"
+df = pd.read_csv(data_dir / "BLAT_ECOLX_Stiffler_2015.csv")
 sequences = df["mutated_sequence"].tolist()
 labels = df["mutant"].tolist()
 
@@ -60,7 +60,7 @@ embeddings_array = np.vstack(embeddings)
 print(f"Final embedding shape: {embeddings_array.shape}")  # Should be (N, 1280)
 
 # Save as a numpy file (fast to load later)
-output_path = script_dir / "beta_lactamase_esm2_embeddings.npy"
+output_path = data_dir / "beta_lactamase_esm2_embeddings.npy"
 np.save(output_path, embeddings_array)
 print(f"Saved embeddings to '{output_path}'")
 
