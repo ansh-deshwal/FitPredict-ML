@@ -53,14 +53,14 @@ The scripts must be run in this order:
 
 ---
 
-## Current Results (stale)
+## Current Results
 
 | Model | Split | Test Spearman ρ | Test Pearson r | Test R² |
 |-------|-------|----------------|----------------|---------|
-| Ridge Regression | 80/20 | ~0.500 | ~0.500 | ~0.250 |
-| MLP (3-layer) | 80/20 (old code) | 0.719 | 0.702 | 0.399 |
-| Fusion v1 | pre-fix | 0.768 | — | — |
-| Fusion v2 | — | not yet run | — | — |
+| Ridge Regression | 80/20 | 0.6435 | 0.6065 | 0.269 |
+| MLP (3-layer) | 70/15/15 | 0.7318 | 0.7289 | 0.404 |
+| **Fusion v1** | 70/15/15 | **0.8248** | **0.8256** | **0.680** |
+| Fusion v2 | 70/15/15 | 0.8140 | 0.8062 | 0.637 |
 
 ---
 
@@ -309,16 +309,14 @@ Linear(11→64) → BN → ReLU → Dropout(0.2) → Linear(64→64) → ReLU
 
 ---
 
-## Benchmark (stale)
+## Benchmark
 
-All numbers below were produced before the current split and path fixes. They are included for reference only.
-
-| Model | Modality | Split | Spearman ρ | Notes |
-|-------|----------|-------|-----------|-------|
-| Ridge | Sequence | 80/20 | ~0.500 | Linear baseline |
-| MLP | Sequence | 80/20 (old code) | 0.719 | Needs retraining with 70/15/15 |
-| Fusion v1 | Seq + Struct | pre-fix | 0.768 | Needs retraining |
-| Fusion v2 | Seq + Struct | — | TBD | Not yet run |
+| Model | Modality | Split | Spearman ρ |
+|-------|----------|-------|-----------|
+| Ridge | Sequence only | 80/20 | 0.6435 |
+| MLP | Sequence only | 70/15/15 | 0.7318 |
+| **Fusion v1** | Seq + Struct | 70/15/15 | **0.8248** |
+| Fusion v2 | Seq + Struct | 70/15/15 | 0.8140 |
 
 ---
 
@@ -331,9 +329,9 @@ All numbers below were produced before the current split and path fixes. They ar
 - [x] 3-layer MLP on sequence embeddings (70/15/15)
 - [x] Multi-modal fusion v1: raw concat + residual blocks (70/15/15, no-leakage normalisation)
 - [x] Multi-modal fusion v2: StructureEncoder + no-leakage normalisation
+- [x] Full pipeline run — all models trained and evaluated (ρ: Ridge 0.64 → MLP 0.73 → Fusion v1 0.82)
 
 **Pending**
-- [ ] Retrain all models under current code and report updated metrics
 - [ ] Evolutionary / MSA features (Stage 8)
 - [ ] Ablation: sequence-only vs structure-only vs fusion
 - [ ] Hyperparameter optimisation
