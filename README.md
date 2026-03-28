@@ -46,10 +46,8 @@ The scripts must be run in this order:
 | 4 — Ridge baseline | `train_baseline.py` | Done | 80/20 split |
 | 5 — MLP baseline | `train_mlp.py` | Done | 70/15/15 split |
 | 6 — Fusion v1 | `train_fusion.py` | Done | seq + raw struct concat |
-| 7 — Fusion v2 | `train_fusion_v2.py` | Done (not yet run) | StructureEncoder + no-leakage norm |
+| 7 — Fusion v2 | `train_fusion_v2.py` | Done | StructureEncoder + no-leakage norm |
 | 8 — Evolutionary features | — | Not started | MSA features |
-
-> **All reported ρ values are stale** — produced before recent split and path fixes. Models need to be retrained to produce valid numbers.
 
 ---
 
@@ -93,8 +91,8 @@ FitPredict-ML/
 │   ├── mlp_predictions.csv                   # MLP test-set predictions
 │   ├── fusion_plot.png                       # Fusion v1: loss curve + scatter (3 panels)
 │   ├── fusion_predictions.csv                # Fusion v1 test-set predictions
-│   ├── fusion_v2_plot.png                    # Fusion v2: loss curve + scatter — generated on first run
-│   └── fusion_v2_predictions.csv             # Fusion v2 test-set predictions — generated on first run
+│   ├── fusion_v2_plot.png                    # Fusion v2: loss curve + scatter (3 panels)
+│   └── fusion_v2_predictions.csv             # Fusion v2 test-set predictions
 │
 ├── Models/                                   # Created at runtime by train_fusion_v2.py
 │   └── best_fusion_v2.pt                     # Best checkpoint — gitignored (*.pt)
@@ -297,7 +295,7 @@ Structure (11-d) → StructureEncoder (64-d)  ──────────┘ 
 
 `StructureEncoder`:
 ```
-Linear(11→64) → BN → ReLU → Dropout(0.2) → Linear(64→64) → ReLU
+Linear(11→64) → BN → ReLU → Dropout(0.3) → Linear(64→64) → ReLU
 ```
 
 `ResidualBlock` is identical to v1.

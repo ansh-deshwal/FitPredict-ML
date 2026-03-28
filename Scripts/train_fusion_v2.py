@@ -14,7 +14,7 @@ Improvement over train_fusion.py
 
 Architecture
 ------------
-  StructureEncoder : Linear(11→64) → BN → ReLU → Dropout(0.2)
+  StructureEncoder : Linear(11→64) → BN → ReLU → Dropout(0.3)
                    → Linear(64→64) → ReLU
   Concat           : [seq(1280) | struct_enc(64)] → 1344-d
   Projection       : Linear(1344→512) → BN → ReLU → Dropout(0.3)
