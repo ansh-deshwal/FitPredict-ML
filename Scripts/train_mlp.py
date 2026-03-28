@@ -31,13 +31,13 @@ except FileNotFoundError as e:
     print(f"Error: Could not find data files. {e}")
     exit()
 
-# 3. Split Data (70% Train, 10% Val, 20% Test)
+# 3. Split Data (70% Train, 15% Val, 15% Test)
 X_trainval, X_test, y_trainval, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, shuffle=True
+    X, y, test_size=0.15, random_state=42, shuffle=True
 )
 X_train, X_val, y_train, y_val = train_test_split(
-    X_trainval, y_trainval, test_size=0.125, random_state=42, shuffle=True
-)  # 0.125 * 0.8 = 0.1 of total
+    X_trainval, y_trainval, test_size=0.1765, random_state=42, shuffle=True
+)  # 0.1765 * 0.85 ≈ 0.15 of total
 print(f"Training samples:   {len(X_train)}")
 print(f"Validation samples: {len(X_val)}")
 print(f"Test samples:       {len(X_test)}")

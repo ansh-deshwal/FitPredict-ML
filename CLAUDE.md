@@ -38,12 +38,12 @@ BLAT_ECOLX_Stiffler_2015.csv (mutant, mutated_sequence, DMS_score)
                               ┌─────────────────────────┴──────────────────────┐
                          train_baseline.py          train_mlp.py         train_fusion.py
                          (Ridge on embeds)      (MLP on embeds)     (embeds + struct feats)
-                              ρ=0.50                ρ=0.719               ρ=0.768
+                           ρ≈0.50 (stale)        ρ=0.719 (stale)      ρ=0.768 (stale)
 ```
 
 **Fusion model** (`train_fusion.py`): concatenates ESM-2 embeddings + z-score normalised structure features → linear projection to 512-d → two `ResidualBlock`s (BatchNorm → Linear → ReLU → Dropout × 2, with skip connection) → head (512→128→1). `struct_dim` is read from `S.shape[1]` at runtime.
 
-**Train/val/test split:** 70% / 10% / 20%, `random_state=42`. The val set drives `ReduceLROnPlateau` and early stopping; the test set is only used for final evaluation.
+**Train/val/test split:** 70% / 15% / 15%, `random_state=42`. The val set drives `ReduceLROnPlateau` and early stopping; the test set is only used for final evaluation.
 
 ## Structural features (11 columns, in order)
 

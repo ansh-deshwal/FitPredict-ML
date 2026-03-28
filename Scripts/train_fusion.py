@@ -34,13 +34,13 @@ S_mean = S.mean(axis=0)
 S_std  = S.std(axis=0) + 1e-8
 S_norm = (S - S_mean) / S_std
 
-# ── Train/Val/Test Split (70% / 10% / 20%) ────────────────────────────────────
+# ── Train/Val/Test Split (70% / 15% / 15%) ────────────────────────────────────
 X_trainval, X_test, S_trainval, S_test, y_trainval, y_test = train_test_split(
-    X, S_norm, y, test_size=0.2, random_state=42, shuffle=True
+    X, S_norm, y, test_size=0.15, random_state=42, shuffle=True
 )
 X_train, X_val, S_train, S_val, y_train, y_val = train_test_split(
-    X_trainval, S_trainval, y_trainval, test_size=0.125, random_state=42, shuffle=True
-)  # 0.125 * 0.8 = 0.1 of total
+    X_trainval, S_trainval, y_trainval, test_size=0.1765, random_state=42, shuffle=True
+)  # 0.1765 * 0.85 ≈ 0.15 of total
 print(f"\nTraining samples:   {len(X_train)}")
 print(f"Validation samples: {len(X_val)}")
 print(f"Test samples:       {len(X_test)}")
@@ -229,9 +229,8 @@ print(f"  R²         : {test_r2:.4f}")
 print(f"  Spearman ρ : {test_rho:.4f}")
 print(f"  Pearson r  : {test_r:.4f}")
 print(f"\n{'─'*55}")
-print(f"  Ridge baseline ρ : 0.5000")
-print(f"  MLP baseline ρ   : 0.7190")
-print(f"  Fusion model ρ   : {test_rho:.4f}  ({test_rho - 0.719:+.4f} vs MLP)")
+print(f"  Fusion model ρ   : {test_rho:.4f}")
+print(f"  (retrain Ridge/MLP under 70/15/15 split for valid baseline comparison)")
 print(f"{'─'*55}")
 
 
