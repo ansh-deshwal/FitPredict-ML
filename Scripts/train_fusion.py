@@ -13,8 +13,10 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Training on: {device}")
 
-# Points to the Data/ folder regardless of where you run from
-script_dir = Path(__file__).parent.parent / "Data"
+# Points to the Data/ and Results/ folders regardless of where you run from
+script_dir  = Path(__file__).parent.parent / "Data"
+results_dir = Path(__file__).parent.parent / "Results"
+results_dir.mkdir(exist_ok=True)
 
 # ── Load Data ─────────────────────────────────────────────────────────────────
 print("Loading data...")
@@ -234,9 +236,6 @@ print(f"{'─'*55}")
 
 
 # ── Plots ─────────────────────────────────────────────────────────────────────
-results_dir = Path(__file__).parent.parent / "Results"
-results_dir.mkdir(exist_ok=True)
-
 fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
 axes[0].plot(train_losses, label='Train Loss', linewidth=2)

@@ -38,8 +38,10 @@ We achieve strong correlation with experimental Deep Mutational Scanning (DMS) d
 | **Stage 2** | Sequence Branch | ✅ **Done** | ρ = 0.719 | Extracted 1280-d ESM-2 embeddings |
 | **Stage 3** | Baseline Models | ✅ **Done** | ρ = 0.719 | Ridge & MLP trained on sequence only |
 | **Stage 4** | Structure Branch | ✅ **Done** | - | Extracted 11 structural features (burial, DSSP, ASA, contact maps, backbone angles) |
-| **Stage 5** | Multi-Modal Fusion | ✅ **Done** | ρ = 0.768 | Sequence (1280-d) + Structure (2-d) fusion |
+| **Stage 5** | Multi-Modal Fusion | ✅ **Done** | ρ = 0.768* | Sequence (1280-d) + Structure (11-d) fusion with residual blocks |
 | **Stage 6** | Evolutionary Branch | ⏳ **Pending** | - | MSA features integration |
+
+> *ρ = 0.768 was achieved with the previous 80/20 split; the model needs retraining under the updated 70/10/20 split to produce comparable numbers.
 
 ---
 
@@ -64,6 +66,7 @@ Training Configuration:
   - Batch Size: 32
   - Epochs: 50
   - Scheduler: ReduceLROnPlateau
+  - Best checkpoint saved and reloaded for final evaluation
 ```
 
 ### Training Characteristics
@@ -72,7 +75,7 @@ Training Configuration:
 - ✅ **Strong rank correlation** - Model captures mutation severity ordering
 - 📊 **Performance gap** - ~5-10% below SOTA (ρ ~ 0.75-0.80)
 
-![MLP Results](results/mlp_baseline_plot.png)
+![MLP Results](Results/mlp_baseline_plot.png)
 
 ### Structural Features (Extended! 🎉)
 
@@ -120,34 +123,36 @@ This structural context is crucial because:
 ```
 FitPredict-ML/
 │
-├── data/
-│   ├── BLAT_ECOLX_Stiffler_2015.csv                  # Raw DMS Data
-│   ├── 1M40.pdb                                       # β-lactamase 3D structure
-│   ├── beta_lactamase_esm2_embeddings.npy             # Sequence embeddings (1280-d)
-│   ├── beta_lactamase_structure_features.npy          # Structural features (11-d)
-│   └── beta_lactamase_structure_features.csv          # Structural features (human-readable)
+├── Data/
+│   ├── BLAT_ECOLX_Stiffler_2015.csv                  # Primary DMS dataset (4,996 mutations)
+│   ├── BLAT_ECOLX_Deng_2012.csv                       # Alternative DMS dataset
+│   ├── BLAT_ECOLX_Firnberg_2014.csv                   # Alternative DMS dataset
+│   ├── BLAT_ECOLX_Jacquier_2013.csv                   # Alternative DMS dataset
+│   └── 1M40.pdb                                       # β-lactamase 3D structure
 │
-├── scripts/
-│   ├── extract_embeddings.py                          # ESM-2 Feature Extractor
-│   ├── extract_structure_features.py                  # PDB Structure Parser (burial + DSSP + contacts)
+├── Scripts/
+│   ├── extract_embeddings.py                          # ESM-2 Feature Extractor → Data/
+│   ├── extract_structure_features.py                  # PDB Structure Parser (burial + DSSP + contacts) → Results/
 │   ├── train_baseline.py                              # Ridge Regression
 │   ├── train_mlp.py                                   # MLP Neural Network
-│   └── train_multimodal.py                            # Multi-modal Fusion (coming)
+│   └── train_fusion.py                                # Multi-modal Fusion (sequence + structure)
 │
-├── results/
+├── Results/
 │   ├── baseline_plot.png                              # Ridge results
 │   ├── baseline_predictions.csv                       # Ridge predictions
 │   ├── mlp_baseline_plot.png                          # MLP results (3-panel)
 │   ├── mlp_predictions.csv                            # MLP predictions
-│   └── structure_analysis.png                         # Burial depth visualization
-│
-├── models/
-│   ├── best_mlp_model.pt                              # Trained MLP weights
-│   └── multimodal_fusion.pt                           # Fusion model (coming)
+│   ├── fusion_plot.png                                # Fusion model results (3-panel)
+│   ├── fusion_predictions.csv                         # Fusion model predictions
+│   ├── beta_lactamase_structure_features.npy          # Structural features (11-d, generated)
+│   └── beta_lactamase_structure_features.csv          # Structural features (human-readable)
 │
 ├── requirements.txt
+├── CLAUDE.md
 └── README.md
 ```
+
+> **Note:** Generated binary files (`*.npy`, `*.pt`) are excluded from version control via `.gitignore`. Run the extraction scripts to regenerate them.
 
 ---
 
@@ -165,12 +170,6 @@ cd FitPredict-ML
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install packages
-pip install torch fair-esm pandas numpy scikit-learn scipy matplotlib biopython
-```
-
-Or use requirements file:
-```bash
 pip install -r requirements.txt
 ```
 
@@ -178,15 +177,15 @@ pip install -r requirements.txt
 
 **A) Sequence Embeddings (one-time, ~30 min on GPU):**
 ```bash
-python scripts/extract_embeddings.py
+python Scripts/extract_embeddings.py
 ```
-Output: `beta_lactamase_esm2_embeddings.npy` (1280 features × 4,996 mutations)
+Output: `Data/beta_lactamase_esm2_embeddings.npy` (1280 features × 4,996 mutations)
 
 **B) Structural Features (one-time, ~1 min):**
 ```bash
-python scripts/extract_structure_features.py
+python Scripts/extract_structure_features.py
 ```
-Output: `beta_lactamase_structure_features.npy` (11 features × 4,996 mutations)
+Output: `Results/beta_lactamase_structure_features.npy` (11 features × 4,996 mutations)
 
 > Requires DSSP for full 11-feature output — see below.
 
@@ -194,18 +193,20 @@ Output: `beta_lactamase_structure_features.npy` (11 features × 4,996 mutations)
 
 **Ridge Regression Baseline:**
 ```bash
-python scripts/train_baseline.py
+python Scripts/train_baseline.py
 ```
 
 **MLP Neural Network:**
 ```bash
-python scripts/train_mlp.py
+python Scripts/train_mlp.py
 ```
 
-**Multi-Modal Fusion (coming soon):**
+**Multi-Modal Fusion:**
 ```bash
-python scripts/train_multimodal.py
+python Scripts/train_fusion.py
 ```
+
+All scripts use `Path(__file__)` for paths and can be run from any directory.
 
 ---
 
@@ -265,7 +266,8 @@ Note: `pydssp` is not the reference Kabsch & Sander implementation and may produ
 2. **3-Layer MLP** - Non-linear model with dropout regularization
    - Architecture: 1280 → 512 → 128 → 1
    - Adam optimizer with LR scheduling
-   - 80/20 train-test split (random seed 42)
+   - 70/10/20 train/val/test split (random seed 42)
+   - Best checkpoint (by val Spearman ρ) reloaded for final evaluation
 
 **Evaluation:**
 - Primary: Spearman rank correlation (ρ)
@@ -293,25 +295,31 @@ Note: `pydssp` is not the reference Kabsch & Sander implementation and may produ
 - Backbone angles encode local conformational context
 - Contact count provides network-level structural centrality
 
-### Phase 3: Multi-Modal Fusion 🔄 In Progress
+### Phase 3: Multi-Modal Fusion ✅ Complete
 
-**Architecture Plan:**
+**Architecture:**
 ```
 Sequence Branch (1280-d)  ──┐
-                             ├──> Attention Fusion ──> Prediction
+                             ├──> Concat (1291-d) → Linear(512) → BN → ReLU → Dropout
 Structure Branch (11-d)   ──┘
-
-Components:
-  - Separate encoders for sequence/structure
-  - Cross-attention mechanism for feature integration
-  - Gated fusion for learned weighting
-  - Dropout for regularization
+                                          ↓
+                                  ResidualBlock(512)   [BN → Linear → ReLU → Dropout × 2 + skip]
+                                          ↓
+                                  ResidualBlock(512)
+                                          ↓
+                                  Linear(128) → BN → ReLU → Dropout → Linear(1)
 ```
 
-**Expected Improvements:**
-- Capture sequence-structure interactions
-- Better generalization across mutation types
-- Improved performance on buried vs. surface variants
+**Training Configuration:**
+- Optimizer: Adam (lr=0.001, weight_decay=1e-4)
+- Loss: MSE
+- Batch Size: 32
+- Epochs: up to 100 with early stopping (patience=15, monitor: val Spearman ρ)
+- Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)
+- Data augmentation: Gaussian noise (std=0.01) on embeddings during training
+- Gradient clipping: max_norm=1.0
+- Structural features: z-score normalized per feature
+- Split: 70/10/20 train/val/test
 
 ---
 
@@ -321,15 +329,16 @@ Components:
 |----------|-----------|------------------|-------|
 | Random Baseline | 0.000 | None | No predictive power |
 | Ridge (Linear) | ~0.500 | Sequence only | Linear baseline |
-| **MLP (Current)** | **0.719** | Sequence only | Current best |
 | ESM-1v (zero-shot) | ~0.650 | Sequence only | Direct LM predictions |
-| **Multi-modal (Achieved)** | **0.768** ⭐ | Seq + Struct | Sequence (ESM-2) + 11 structural features |
-| Multi-modal (Target) | ~0.750+ | Seq + Struct | Under development |
+| **MLP (Sequence-only)** | **0.719** | Sequence only | 3-layer MLP on ESM-2 embeddings |
+| **Multi-modal Fusion** | **0.768*** | Seq + Struct | ESM-2 (1280-d) + 11 structural features |
 | SOTA Literature | ~0.75-0.80 | Seq + Struct + Evol | Published benchmarks |
+
+> *ρ = 0.768 achieved prior to the 70/10/20 split fix; will be updated after retraining.
 
 **Progress to SOTA:**
 - Sequence-only MLP: ρ = 0.719
-- **Multi-modal fusion: ρ = 0.768** ✅ (exceeds ~0.750 target)
+- Multi-modal fusion: ρ = 0.768 (exceeds ~0.750 target)
 - SOTA Literature: ρ ~ 0.75–0.80
 - Gap to SOTA top: ~1–3 percentage points
 
@@ -349,12 +358,12 @@ Components:
 - [x] Backbone dihedral angles (sin/cos φ, sin/cos ψ)
 - [x] Pairwise Cα–Cα contact map + per-residue contact count
 - [x] Full 11-feature structural matrix (4,996 × 11)
-- [x] Comprehensive evaluation framework
-
-- [x] Multi-modal fusion network (sequence 1280-d + structure 11-d) — **ρ = 0.768**
-- [x] Exceeded ~0.750 target, approaching SOTA
+- [x] Multi-modal fusion network (sequence 1280-d + structure 11-d) — ρ = 0.768
+- [x] Proper train/val/test split (70/10/20) — eliminates test leakage
+- [x] Best-checkpoint save/reload in MLP and Fusion training
 
 ### In Progress 🔄
+- [ ] Retrain fusion model under 70/10/20 split and update benchmark numbers
 - [ ] Ablation studies (sequence vs. structure contribution)
 - [ ] Cross-validation framework
 
@@ -418,10 +427,9 @@ pip install torch --index-url https://download.pytorch.org/whl/cu118
 ### PDB Download Fails
 ```bash
 # Manual download
-wget https://files.rcsb.org/download/1M40.pdb
+wget https://files.rcsb.org/download/1M40.pdb -P Data/
 
-# Or use browser
-# Visit: https://www.rcsb.org/structure/1M40
+# Or visit: https://www.rcsb.org/structure/1M40
 ```
 
 ### DSSP Not Found (Windows)
@@ -518,7 +526,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - **Week 1**: Data exploration and preprocessing ✅
 - **Week 2**: ESM-2 embedding extraction ✅
 - **Week 3**: Baseline models (Ridge, MLP) ✅
-- **Week 4**: Extended structural feature extraction (11 features) ✅ (Current)
+- **Week 4**: Extended structural feature extraction (11 features) ✅
 - **Week 5**: Multi-modal fusion implementation ✅ (ρ = 0.768)
 - **Week 6**: Hyperparameter tuning and evaluation 📋
 - **Week 7**: Extended benchmarks and analysis 📋
@@ -530,8 +538,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### 🎯 Current Milestone
 
-**Stage 5 in progress**: Multi-modal fusion — **Spearman ρ = 0.768** (sequence + 2 structural features)(will implement sequence + 11 structural features)
-**Next**: Evolutionary features (MSA) + ablation studies
+**Stage 5 Complete**: Multi-modal fusion — **Spearman ρ = 0.768** (sequence 1280-d + structure 11-d)
+
+**Next**: Retrain fusion under corrected 70/10/20 split, then evolutionary features (MSA) + ablation studies
 
 ---
 
@@ -539,10 +548,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Made with ❤️ for advancing protein engineering through AI
 
-**Latest Achievement**: Multi-modal fusion **Spearman ρ = 0.768** (sequence + structure)
+**Latest Achievement**: Multi-modal fusion **Spearman ρ = 0.768** (sequence + 11 structural features)
 
 **Previous**: MLP baseline ρ = 0.719 (sequence-only)
-
-**Current Status**: Testing Multi-Modal Fusion with 11 structural features
 
 </div>
