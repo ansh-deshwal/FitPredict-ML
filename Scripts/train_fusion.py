@@ -21,8 +21,8 @@ results_dir.mkdir(exist_ok=True)
 # ── Load Data ─────────────────────────────────────────────────────────────────
 print("Loading data...")
 df = pd.read_csv(script_dir / "BLAT_ECOLX_Stiffler_2015.csv")
-X  = np.load(script_dir / "beta_lactamase_esm2_embeddings.npy")       # (4996, 1280)
-S  = np.load(script_dir / "beta_lactamase_structure_features.npy")    # (4996, 11)
+X  = np.load(script_dir  / "beta_lactamase_esm2_embeddings.npy")       # (4996, 1280)
+S  = np.load(results_dir / "beta_lactamase_structure_features.npy")    # (4996, 11)
 y  = df["DMS_score"].values.astype(float)
 
 print(f"Embeddings:      {X.shape}")

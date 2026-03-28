@@ -51,8 +51,8 @@ We achieve strong correlation with experimental Deep Mutational Scanning (DMS) d
 
 | Model | Architecture | Test Spearman ρ | Test Pearson r | Test R² | Parameters |
 |-------|-------------|----------------|----------------|---------|------------|
-| Ridge Regression | Linear | ~0.500 | ~0.500 | ~0.250 | 1,280 |
-| **MLP (3-layer)** | Deep | **0.7190** ⭐ | 0.7020 | 0.3993 | 721,665 |
+| Ridge Regression | Linear | ~0.500* | ~0.500* | ~0.250* | 1,280 |
+| **MLP (3-layer)** | Deep | **0.7190*** ⭐ | 0.7020* | 0.3993* | 721,665 |
 
 ### MLP Architecture Details
 ```
@@ -74,6 +74,8 @@ Training Configuration:
 - ✅ **Smooth convergence** - Learning rate reduced at epoch ~22
 - ✅ **Strong rank correlation** - Model captures mutation severity ordering
 - 📊 **Performance gap** - ~5-10% below SOTA (ρ ~ 0.75-0.80)
+
+> *All MLP and Ridge metrics above were produced with the old 80/20 split; retraining under the current 70/10/20 split will update these numbers.
 
 ![MLP Results](Results/mlp_baseline_plot.png)
 
@@ -330,11 +332,11 @@ Structure Branch (11-d)   ──┘
 | Random Baseline | 0.000 | None | No predictive power |
 | Ridge (Linear) | ~0.500 | Sequence only | Linear baseline |
 | ESM-1v (zero-shot) | ~0.650 | Sequence only | Direct LM predictions |
-| **MLP (Sequence-only)** | **0.719** | Sequence only | 3-layer MLP on ESM-2 embeddings |
+| **MLP (Sequence-only)** | **0.719*** | Sequence only | 3-layer MLP on ESM-2 embeddings |
 | **Multi-modal Fusion** | **0.768*** | Seq + Struct | ESM-2 (1280-d) + 11 structural features |
 | SOTA Literature | ~0.75-0.80 | Seq + Struct + Evol | Published benchmarks |
 
-> *ρ = 0.768 achieved prior to the 70/10/20 split fix; will be updated after retraining.
+> *All reported ρ values were produced with the old 80/20 split; numbers will be updated after retraining under the current 70/10/20 split.
 
 **Progress to SOTA:**
 - Sequence-only MLP: ρ = 0.719
