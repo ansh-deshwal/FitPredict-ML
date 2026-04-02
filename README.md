@@ -7,106 +7,83 @@
 [![Data](https://img.shields.io/badge/Data-ProteinGym-purple)](https://proteingym.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Predicts DMS fitness scores for single-point mutants of β-lactamase TEM-1 by combining sequence embeddings (ESM-2), structural features (PDB 1M40), and a multi-modal fusion network.
+Predicts DMS fitness scores for single-point mutants of β-lactamase TEM-1 by fusing four biological modalities: ESM-2 sequence embeddings, structural features (PDB 1M40 + DSSP), ESM-1v zero-shot scores, and MSA evolutionary frequencies.
 
 ---
 
 ## Project Overview
 
-- **Protein**: β-lactamase TEM-1 (BLAT_ECOLX)
-- **Dataset**: Stiffler et al. 2015 — 4,996 single-point variants, continuous DMS fitness score
+- **Protein**: β-lactamase TEM-1 (BLAT_ECOLX) — the enzyme bacteria use to destroy penicillin-class antibiotics
+- **Task**: Predict continuous DMS fitness scores for single-point mutants
+- **Primary dataset**: Stiffler et al. 2015 — 4,996 single-point variants
 - **Structure**: PDB ID 1M40 (0.85 Å resolution)
-- **Modalities implemented**: sequence embeddings (ESM-2 1280-d) + structural features (11-d from PDB)
-- **Modality not yet implemented**: evolutionary / MSA features
+- **Best single-assay model**: Fusion v5 — Spearman ρ = **0.8821** on held-out test set
+- **Modalities**: sequence (ESM-2 1280-d) · structural (11-d PDB/DSSP) · ESM-1v zero-shot score (1-d) · MSA evolutionary frequencies (22-d)
+
+---
+
+## Benchmark Results
+
+| Model | Modalities | Split | Spearman ρ | Pearson r | R² |
+|---|---|---|---|---|---|
+| Ridge Regression | Sequence | 80/20 | 0.6435 | 0.6065 | 0.269 |
+| MLP (3-layer) | Sequence | 70/15/15 | 0.7318 | 0.7289 | 0.404 |
+| Fusion v1 | Seq + Struct (raw) | 70/15/15 | 0.8248 | 0.8256 | 0.680 |
+| Fusion v2 | Seq + StructEncoder | 70/15/15 | 0.8140 | 0.8062 | 0.637 |
+| Fusion v3 | Seq + Struct + ESM-1v | 70/15/15 | 0.8774 | — | — |
+| Fusion v4 | Seq + Struct + MSA evol | 70/15/15 | 0.8294 | — | — |
+| **Fusion v5** | **Seq + Struct + ESM-1v + MSA evol** | **70/15/15** | **0.8821** | **0.8952** | **0.800** |
+
+All models trained and evaluated on Stiffler 2015 only. Spearman ρ is the primary metric — it measures whether the model correctly *ranks* mutations by fitness.
+
+### Cross-dataset generalization (Fusion v3, no retraining)
+
+| Dataset | N | Spearman ρ | Notes |
+|---|---|---|---|
+| Stiffler 2015 (test) | 749 | 0.8774 | trained on this |
+| Firnberg 2014 | 4783 | 0.8838 | good ranking, different scale |
+| Jacquier 2013 | 989 | 0.7802 | good transfer |
+| Deng 2012 | 4996 | 0.5702 | hardest case — different assay |
 
 ---
 
 ## Pipeline
 
-The scripts must be run in this order:
+Run extraction scripts first, then training scripts in any order:
 
-```
-1. extract_embeddings.py        → Data/beta_lactamase_esm2_embeddings.npy
-2. extract_structure_features.py → Results/beta_lactamase_structure_features.npy
-3. train_baseline.py             (no GPU required)
-   train_mlp.py
-   train_fusion.py
-   train_fusion_v2.py            (steps 3a–3d can run in any order)
-```
+```bash
+# 1. Sequence embeddings (~30 min on GPU)
+python Scripts/extract_embeddings.py
 
----
+# 2. Structural features (~1 min, requires mkdssp)
+python Scripts/extract_structure_features.py
 
-## Project Status
+# 3a. ESM-1v scores — single member (~5 min on GPU)
+python Scripts/extract_esm1v_scores.py
 
-| Stage | Script | Status | Notes |
-|-------|--------|--------|-------|
-| 1 — Data prep | — | Done | CSV loaded and validated |
-| 2 — Sequence embeddings | `extract_embeddings.py` | Done | 4,996 × 1280 ESM-2 vectors |
-| 3 — Structural features | `extract_structure_features.py` | Done | 4,996 × 11, committed to repo |
-| 4 — Ridge baseline | `train_baseline.py` | Done | 80/20 split |
-| 5 — MLP baseline | `train_mlp.py` | Done | 70/15/15 split |
-| 6 — Fusion v1 | `train_fusion.py` | Done | seq + raw struct concat |
-| 7 — Fusion v2 | `train_fusion_v2.py` | Done | StructureEncoder + no-leakage norm |
-| 8 — Evolutionary features | — | Not started | MSA features |
+# 3b. ESM-1v scores — 5-member ensemble average (~25 min on GPU)
+python Scripts/extract_esm1v_scores_ensemble.py
 
----
+# 4. MSA evolutionary features (~2 min, requires Data/BLAT_ECOLX_MSA.a2m)
+python Scripts/extract_evolutionary_features.py
 
-## Current Results
+# Training (any order, each ~5 min on GPU)
+python Scripts/train_baseline.py       # Ridge, CPU only
+python Scripts/train_mlp.py            # MLP
+python Scripts/train_fusion.py         # Fusion v1
+python Scripts/train_fusion_v2.py      # Fusion v2
+python Scripts/train_fusion_v3.py      # Fusion v3
+python Scripts/train_fusion_v4.py      # Fusion v4
+python Scripts/train_fusion_v5.py      # Fusion v5 (best)
 
-| Model | Split | Test Spearman ρ | Test Pearson r | Test R² |
-|-------|-------|----------------|----------------|---------|
-| Ridge Regression | 80/20 | 0.6435 | 0.6065 | 0.269 |
-| MLP (3-layer) | 70/15/15 | 0.7318 | 0.7289 | 0.404 |
-| **Fusion v1** | 70/15/15 | **0.8248** | **0.8256** | **0.680** |
-| Fusion v2 | 70/15/15 | 0.8140 | 0.8062 | 0.637 |
+# Generalization evaluation (~15 min on GPU, first run)
+python Scripts/evaluate_generalization.py
 
----
-
-## Repository Structure
-
-```
-FitPredict-ML/
-│
-├── Data/
-│   ├── BLAT_ECOLX_Stiffler_2015.csv          # Primary dataset — used by all scripts
-│   ├── BLAT_ECOLX_Deng_2012.csv              # Unused
-│   ├── BLAT_ECOLX_Firnberg_2014.csv          # Unused
-│   ├── BLAT_ECOLX_Jacquier_2013.csv          # Unused
-│   └── 1M40.pdb                              # β-lactamase structure (downloaded by extract_structure_features.py)
-│
-├── Scripts/
-│   ├── extract_embeddings.py                 # ESM-2 → Data/beta_lactamase_esm2_embeddings.npy
-│   ├── extract_structure_features.py         # PDB + DSSP → Results/beta_lactamase_structure_features.npy
-│   ├── train_baseline.py                     # Ridge regression, 80/20 split
-│   ├── train_mlp.py                          # 3-layer MLP, 70/15/15 split
-│   ├── train_fusion.py                       # Fusion v1: raw concat(seq+struct), 70/15/15
-│   └── train_fusion_v2.py                    # Fusion v2: StructureEncoder(11→64), 70/15/15
-│
-├── Results/
-│   ├── beta_lactamase_structure_features.npy # (4,996 × 11) — committed to git
-│   ├── beta_lactamase_structure_features.csv # Same, human-readable — committed to git
-│   ├── baseline_plot.png                     # Ridge: train + test scatter (2 panels)
-│   ├── baseline_predictions.csv              # Ridge test-set predictions
-│   ├── mlp_baseline_plot.png                 # MLP: loss curve + train + test scatter (3 panels)
-│   ├── mlp_predictions.csv                   # MLP test-set predictions
-│   ├── fusion_plot.png                       # Fusion v1: loss curve + scatter (3 panels)
-│   ├── fusion_predictions.csv                # Fusion v1 test-set predictions
-│   ├── fusion_v2_plot.png                    # Fusion v2: loss curve + scatter (3 panels)
-│   └── fusion_v2_predictions.csv             # Fusion v2 test-set predictions
-│
-├── Models/                                   # Created at runtime by train_fusion_v2.py
-│   └── best_fusion_v2.pt                     # Best checkpoint — gitignored (*.pt)
-│
-├── ProteinForge Initial.pdf
-├── proteinfit_progress1.docx
-├── requirements.txt
-├── CLAUDE.md
-└── README.md
+# Multi-dataset training (~10 min on GPU)
+python Scripts/train_multidataset.py
 ```
 
-> `Data/beta_lactamase_esm2_embeddings.npy` (~25 MB, float32) and all `*.pt` checkpoints
-> (`Results/best_mlp_model.pt`, `Results/best_fusion_model.pt`, `Models/best_fusion_v2.pt`)
-> are excluded by `.gitignore`. The structural feature `.npy` and `.csv` files in `Results/` are committed.
+All scripts resolve paths via `Path(__file__)` — run from any directory.
 
 ---
 
@@ -122,199 +99,135 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Extract sequence embeddings (one-time, ~30 min on GPU)
+### 2. Get the MSA file (required for evolutionary features only)
 
 ```bash
-python Scripts/extract_embeddings.py
+curl -o DMS_msa_files.zip \
+  "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_msa_files.zip"
+unzip -j DMS_msa_files.zip "DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m" -d Data/
+mv Data/BLAT_ECOLX_full_11-26-2021_b02.a2m Data/BLAT_ECOLX_MSA.a2m
+rm DMS_msa_files.zip
 ```
 
-Output: `Data/beta_lactamase_esm2_embeddings.npy` (4,996 × 1280, float32, ~25 MB)
+The zip is ~1.5 GB. The extracted MSA is 65 MB (209,644 sequences).
 
-### 3. Extract structural features (one-time, ~1 min)
+### 3. DSSP setup
 
-```bash
-python Scripts/extract_structure_features.py
-```
-
-Output: `Results/beta_lactamase_structure_features.npy` (4,996 × 11).
-Already committed — re-run only if you change the extraction logic.
-Requires `mkdssp` for full output; see [DSSP Setup](#dssp-setup) below.
-
-### 4. Train models
+DSSP computes secondary structure, rASA, and backbone dihedrals. Without it, structural features 2–9 are zeroed.
 
 ```bash
-python Scripts/train_baseline.py      # Ridge — CPU only, seconds
-python Scripts/train_mlp.py           # MLP — ~2 min on GPU
-python Scripts/train_fusion.py        # Fusion v1 — ~5 min on GPU
-python Scripts/train_fusion_v2.py     # Fusion v2 — ~5 min on GPU
-```
-
-All scripts resolve paths via `Path(__file__)` and can be run from any directory.
-
----
-
-## DSSP Setup
-
-DSSP computes secondary structure (helix/sheet/coil), rASA, and backbone dihedral angles. Without it, features 2–9 are zeroed; only `burial_score`, `is_buried`, and `contact_count` are populated.
-
-**Linux / WSL**
-```bash
+# Linux / WSL
 sudo apt-get update && sudo apt-get install dssp
 which mkdssp    # should print /usr/bin/mkdssp
-```
 
-**macOS**
-```bash
+# macOS
 brew install brewsci/bio/dssp
-```
 
-**Windows (native) — no binary available**
-```bash
+# Windows (native) — no binary available
 pip install pydssp
 ```
-`pydssp` is not the reference Kabsch & Sander implementation and may produce minor numerical differences.
 
 ---
 
-## Methodology
+## Architecture
 
-### Stage 1: Sequence Embeddings (`extract_embeddings.py`)
+### Fusion v5 (best model)
 
-- Loads `mutated_sequence` column from `BLAT_ECOLX_Stiffler_2015.csv`
-- Model: ESM-2 650M (`esm2_t33_650M_UR50D`), eval mode, layer 33
-- Batch size: 4 (reduce to 2 or 1 on 4 GB VRAM)
-- Mean pooling over sequence positions: `token_embeddings[j, 1 : seq_len + 1].mean(0)` — excludes CLS (index 0) and EOS (index seq_len + 1)
-- Output: 1280-d float32 vector per variant
-
-### Stage 2: Structural Features (`extract_structure_features.py`)
-
-- Downloads PDB 1M40 to `Data/` if not present
-- Parses chain A Cα coordinates
-- Burial: counts Cα neighbours within 10 Å (excludes self); buried if count > 20
-- Contact map: binary Cα–Cα contacts within 8 Å; per-residue count = row sum
-- DSSP (if `mkdssp` available): secondary structure (H/E/other→C), rASA, backbone φ/ψ → (sin, cos) pairs; undefined angles (360°) → (0, 0)
-- Residue number extracted from mutant string (e.g., `H24C` → 24); residues with unresolvable position or absent from PDB Cα dict get all-zero rows
-
-**11 features per variant (in order):**
-
-| # | Name | Type | Description |
-|---|------|------|-------------|
-| 0 | `burial_score` | int | Cα neighbours within 10 Å |
-| 1 | `is_buried` | binary | 1 if burial_score > 20 |
-| 2 | `ss_helix` | binary | 1 if DSSP assigns H |
-| 3 | `ss_sheet` | binary | 1 if DSSP assigns E |
-| 4 | `ss_coil` | binary | 1 if DSSP assigns other (mapped to C) |
-| 5 | `rASA` | float [0,1] | Relative accessible surface area |
-| 6 | `sin_phi` | float [-1,1] | sin of backbone φ |
-| 7 | `cos_phi` | float [-1,1] | cos of backbone φ |
-| 8 | `sin_psi` | float [-1,1] | sin of backbone ψ |
-| 9 | `cos_psi` | float [-1,1] | cos of backbone ψ |
-| 10 | `contact_count` | int | Cα contacts within 8 Å |
-
-Features 2–9 require `mkdssp` and are zeroed if unavailable.
-
-### Stage 3a: Ridge Regression (`train_baseline.py`)
-
-- `sklearn.linear_model.Ridge(alpha=1.0)`
-- Split: 80/20 train/test (random_state=42), no validation set
-- Outputs: `Results/baseline_predictions.csv`, `Results/baseline_plot.png`
-
-### Stage 3b: MLP (`train_mlp.py`)
-
-**Architecture:**
 ```
-Linear(1280 → 512) → ReLU → Dropout(0.3)
-Linear(512 → 128)  → ReLU → Dropout(0.3)
-Linear(128 → 1)
-```
-721,665 trainable parameters.
-
-**Training:**
-- Split: 70/15/15 train/val/test (random_state=42)
-  - `train_test_split(..., test_size=0.15)` → trainval + test
-  - `train_test_split(..., test_size=0.1765)` → train + val  (0.1765 × 0.85 ≈ 0.15 of total)
-- Optimizer: Adam (lr=0.001, weight_decay=1e-5)
-- Loss: MSE, batch size 32, **50 fixed epochs** (no early stopping)
-- Scheduler: ReduceLROnPlateau on val loss (factor=0.5, patience=5)
-- Gradient clipping: max_norm=1.0
-- Best val Spearman ρ checkpoint saved to `Results/best_mlp_model.pt`; reloaded for final eval
-- Outputs: `Results/mlp_predictions.csv`, `Results/mlp_baseline_plot.png`, `Results/best_mlp_model.pt` (gitignored)
-
-### Stage 3c: Fusion v1 (`train_fusion.py`)
-
-**Architecture:**
-```
-Sequence (1280-d)  ──┐
-                      ├──> Concat (1291-d) → Linear(512) → BN → ReLU → Dropout(0.3)
-Structure (11-d)   ──┘                              ↓
-                                            ResidualBlock(512)
-                                                    ↓
-                                            ResidualBlock(512)
-                                                    ↓
-                                    Linear(512→128) → BN → ReLU → Dropout(0.2)
-                                                    ↓
-                                              Linear(128→1)
+ESM-2 sequence embedding  (1280-d) ─────────────────────────────────────┐
+Structural features (11-d) → StructEncoder → (64-d) ────────────────────┤
+ESM-1v zero-shot score     (1-d, z-scored) ─────────────────────────────┤→ Concat (1409-d)
+MSA evolutionary features (22-d) → EvolEncoder → (64-d) ────────────────┘
+                                                                          ↓
+                                                            Linear(1409→512) → BN → ReLU → Dropout(0.3)
+                                                                          ↓
+                                                                 ResidualBlock(512)
+                                                                          ↓
+                                                                 ResidualBlock(512)
+                                                                          ↓
+                                                     Linear(512→128) → BN → ReLU → Dropout(0.2)
+                                                                          ↓
+                                                                   Linear(128→1)
 ```
 
-Each `ResidualBlock(dim)`:
-```
-block:  BN(dim) → Linear(dim,dim) → ReLU → Dropout(0.2) → BN(dim) → Linear(dim,dim) → Dropout(0.2)
-output: ReLU(block(x) + x)
-```
-`struct_dim` is read from `S.shape[1]` at runtime.
+**StructEncoder / EvolEncoder:** `Linear(in→64) → BN → ReLU → Dropout(0.3) → Linear(64→64) → ReLU`
 
-**Training:**
-- Split: same 70/15/15 as MLP
-- Structural features: z-score normalised using **train-split mean/std only** (fitted after split, applied to val and test)
-- Optimizer: Adam (lr=0.001, weight_decay=1e-4)
-- Loss: MSE, batch size 32, max 100 epochs
-- Gaussian noise on embeddings during training (std=0.01)
-- Gradient clipping: max_norm=1.0
-- Scheduler: ReduceLROnPlateau on val loss (factor=0.5, patience=5)
-- Early stopping: patience=15 on val Spearman ρ
-- Best val Spearman ρ checkpoint saved to `Results/best_fusion_model.pt`; reloaded for final eval
-- Outputs: `Results/fusion_predictions.csv`, `Results/fusion_plot.png`, `Results/best_fusion_model.pt` (gitignored)
+**ResidualBlock:** `BN → Linear → ReLU → Dropout(0.2) → BN → Linear → Dropout(0.2)`, with skip connection + ReLU
 
-### Stage 3d: Fusion v2 (`train_fusion_v2.py`)
+**Training:** Adam (lr=0.001, weight_decay=1e-4) · MSE loss · batch 32 · Gaussian noise on embeddings (σ=0.01) · gradient clipping (max_norm=1.0) · ReduceLROnPlateau (factor=0.5, patience=5) · early stopping (patience=15 on val ρ)
 
-Replaces the raw 11-d structural concatenation with a learned `StructureEncoder` that projects structural features to a 64-d representation before fusion.
+### Multi-dataset model
 
-**Architecture:**
-```
-Sequence (1280-d)  ──────────────────────────────────┐
-                                                       ├──> Concat (1344-d) → Linear(512) → BN → ReLU → Dropout(0.3)
-Structure (11-d) → StructureEncoder (64-d)  ──────────┘              ↓
-                                                               ResidualBlock(512)
-                                                                       ↓
-                                                               ResidualBlock(512)
-                                                                       ↓
-                                               Linear(512→128) → BN → ReLU → Dropout(0.2)
-                                                                       ↓
-                                                                 Linear(128→1)
-```
-
-`StructureEncoder`:
-```
-Linear(11→64) → BN → ReLU → Dropout(0.3) → Linear(64→64) → ReLU
-```
-
-`ResidualBlock` is identical to v1.
-
-**Training:** identical to Fusion v1, except:
-- Creates `Models/` directory at runtime
-- Best checkpoint saved to `Models/best_fusion_v2.pt`
-- Outputs: `Results/fusion_v2_predictions.csv`, `Results/fusion_v2_plot.png`, `Models/best_fusion_v2.pt` (gitignored)
+Same architecture as Fusion v5. Key difference: DMS scores from each dataset are **rank-normalised independently** to [0,1] before pooling, eliminating cross-assay scale mismatch. Trained on Stiffler + Firnberg + Jacquier (~14,768 variants), evaluated on Deng 2012 as held-out test.
 
 ---
 
-## Benchmark
+## Feature Details
 
-| Model | Modality | Split | Spearman ρ |
-|-------|----------|-------|-----------|
-| Ridge | Sequence only | 80/20 | 0.6435 |
-| MLP | Sequence only | 70/15/15 | 0.7318 |
-| **Fusion v1** | Seq + Struct | 70/15/15 | **0.8248** |
-| Fusion v2 | Seq + Struct | 70/15/15 | 0.8140 |
+### Structural features (11-d)
+
+Computed from PDB 1M40, chain A. Each variant uses features from its mutation *position* in the WT structure (structure is WT regardless of which amino acid is substituted).
+
+| # | Feature | Description |
+|---|---|---|
+| 0 | `burial_score` | Cα neighbours within 10 Å |
+| 1 | `is_buried` | 1 if burial_score > 20 |
+| 2 | `ss_helix` | 1 if DSSP = H |
+| 3 | `ss_sheet` | 1 if DSSP = E |
+| 4 | `ss_coil` | 1 if DSSP = other |
+| 5 | `rASA` | Relative accessible surface area [0,1] |
+| 6–7 | `sin_phi`, `cos_phi` | Backbone φ dihedral |
+| 8–9 | `sin_psi`, `cos_psi` | Backbone ψ dihedral |
+| 10 | `contact_count` | Cα contacts within 8 Å |
+
+Features 2–9 require `mkdssp`. Residues absent from PDB get all-zero rows.
+
+### ESM-1v score (1-d)
+
+Masked-marginal score: `log P(mut_aa | masked position) − log P(wt_aa | masked position)`. Computed with ~263 forward passes (one per unique position). Default uses ensemble member 1; `extract_esm1v_scores_ensemble.py` averages all 5 members.
+
+### Evolutionary features (22-d)
+
+From ProteinGym MSA (209,644 sequences): `entropy`, `gap_frac`, and amino acid frequencies for all 20 residues. 71 positions are insertions relative to the HMM and receive all-zero rows.
+
+---
+
+## Repository Structure
+
+```
+FitPredict-ML/
+│
+├── Data/
+│   ├── BLAT_ECOLX_Stiffler_2015.csv          # Primary dataset (4,996 variants)
+│   ├── BLAT_ECOLX_Deng_2012.csv              # Cross-dataset eval
+│   ├── BLAT_ECOLX_Firnberg_2014.csv          # Cross-dataset eval
+│   ├── BLAT_ECOLX_Jacquier_2013.csv          # Cross-dataset eval
+│   ├── 1M40.pdb                              # β-lactamase crystal structure
+│   ├── BLAT_ECOLX_MSA.a2m                   # ProteinGym MSA (gitignored, ~65 MB)
+│   └── beta_lactamase_esm2_embeddings.npy   # ESM-2 embeddings (gitignored, ~25 MB)
+│
+├── Scripts/
+│   ├── extract_embeddings.py                 # ESM-2 → Data/beta_lactamase_esm2_embeddings.npy
+│   ├── extract_structure_features.py         # PDB/DSSP → Results/beta_lactamase_structure_features.npy
+│   ├── extract_esm1v_scores.py               # ESM-1v member 1 → Results/beta_lactamase_esm1v_scores.npy
+│   ├── extract_esm1v_scores_ensemble.py      # ESM-1v 5-member avg → Results/beta_lactamase_esm1v_ensemble_scores.npy
+│   ├── extract_evolutionary_features.py      # MSA → Results/beta_lactamase_evolutionary_features.npy
+│   ├── train_baseline.py                     # Ridge regression (80/20)
+│   ├── train_mlp.py                          # MLP on sequence only (70/15/15)
+│   ├── train_fusion.py                       # Fusion v1: seq + struct raw concat
+│   ├── train_fusion_v2.py                    # Fusion v2: + StructureEncoder
+│   ├── train_fusion_v3.py                    # Fusion v3: + ESM-1v score
+│   ├── train_fusion_v4.py                    # Fusion v4: seq + struct + MSA evol
+│   ├── train_fusion_v5.py                    # Fusion v5: all 4 modalities (best)
+│   ├── evaluate_generalization.py            # Cross-dataset transfer eval (no retraining)
+│   └── train_multidataset.py                 # Multi-assay training with rank normalisation
+│
+├── Results/                                  # Plots, predictions, cached embeddings
+├── Models/                                   # Model checkpoints (*.pt, gitignored)
+├── requirements.txt
+├── CLAUDE.md
+└── README.md
+```
 
 ---
 
@@ -323,66 +236,44 @@ Linear(11→64) → BN → ReLU → Dropout(0.3) → Linear(64→64) → ReLU
 **Done**
 - [x] ESM-2 embedding extraction
 - [x] Structural feature extraction from PDB 1M40 (11 features)
-- [x] Ridge regression baseline (80/20)
-- [x] 3-layer MLP on sequence embeddings (70/15/15)
-- [x] Multi-modal fusion v1: raw concat + residual blocks (70/15/15, no-leakage normalisation)
-- [x] Multi-modal fusion v2: StructureEncoder + no-leakage normalisation
-- [x] Full pipeline run — all models trained and evaluated (ρ: Ridge 0.64 → MLP 0.73 → Fusion v1 0.82)
+- [x] MSA evolutionary feature extraction (22 features)
+- [x] ESM-1v zero-shot scoring (single member + 5-member ensemble)
+- [x] Ridge regression baseline
+- [x] MLP on sequence embeddings
+- [x] Fusion v1–v5 (incremental modality ablation)
+- [x] Cross-dataset generalization evaluation (Deng 2012, Firnberg 2014, Jacquier 2013)
+- [x] Multi-dataset training with rank normalisation
 
 **Pending**
-- [ ] Evolutionary / MSA features (Stage 8)
-- [ ] Ablation: sequence-only vs structure-only vs fusion
-- [ ] Hyperparameter optimisation
-- [ ] Extend to additional ProteinGym datasets
+- [ ] Run `train_multidataset.py` — Deng 2012 generalization ρ TBD
+- [ ] Train Fusion v5 with ESM-1v ensemble scores (swap `.npy` path)
+- [ ] ProteinGym-style 5-fold CV for direct comparison with published methods
+- [ ] Multi-protein generalization
 
 ---
 
 ## Key Concepts
 
-**Deep Mutational Scanning (DMS):** High-throughput technique measuring functional effects of thousands of protein mutations. Each variant receives a fitness score (log-enrichment ratio) relative to wild-type.
+**Deep Mutational Scanning (DMS):** High-throughput technique measuring functional effects of thousands of protein mutations simultaneously. Each variant receives a fitness score (log-enrichment ratio) relative to wild-type.
 
-**ESM-2:** Transformer trained on ~250M protein sequences. Outputs per-residue representations capturing evolutionary and structural context without explicit 3D supervision.
+**ESM-2:** Transformer trained on ~250M protein sequences. Outputs 1280-d per-sequence representations capturing evolutionary and structural context.
 
-**Burial depth:** Number of Cα neighbours within 10 Å. Residues with more than 20 neighbours are classified as buried (protein core).
+**ESM-1v:** Protein language model for variant effect prediction. Uses masked-marginal scoring: mask a position, ask the model what amino acid it expects, compute log-odds of mutant vs wild-type.
 
-**DSSP:** Kabsch & Sander (1983) algorithm assigning secondary structure from hydrogen bond geometry. Also computes rASA and backbone dihedrals. Requires `mkdssp`.
+**Spearman ρ:** Primary evaluation metric. Measures monotonic rank correlation — correctly *ranking* mutations is more useful for experimental prioritisation than predicting absolute values.
 
-**rASA:** Relative accessible surface area — fraction of a residue's solvent exposure relative to its theoretical maximum. 0 = fully buried, 1 = fully exposed.
-
-**Backbone dihedrals (φ, ψ):** Encoded as (sin, cos) pairs to avoid the ±180° discontinuity.
-
-**Spearman ρ:** Primary evaluation metric. Measures monotonic rank correlation — correct *ranking* of mutations is more useful for experimental prioritisation than absolute accuracy.
-
----
-
-## Troubleshooting
-
-**GPU not detected**
-```bash
-python -c "import torch; print(torch.cuda.is_available())"
-pip install torch --index-url https://download.pytorch.org/whl/cu118
-```
-
-**PDB download fails**
-```bash
-wget https://files.rcsb.org/download/1M40.pdb -P Data/
-```
-
-**DSSP not found** — use WSL (`sudo apt-get install dssp`) or `pip install pydssp`.
-
-**Out of memory during embedding extraction** — reduce `batch_size` in `extract_embeddings.py` (default 4; try 1 or 2).
-
-**Out of memory during training** — reduce `BATCH_SIZE` / `batch_size` in the training script (default 32; try 16 or 8).
+**Rank normalisation:** Converting each dataset's fitness scores to percentile ranks [0,1] before cross-dataset training. Eliminates scale mismatch between assays that use different readouts and measurement ranges.
 
 ---
 
 ## References
 
 1. Lin et al. (2023) — ESM-2: "Evolutionary-scale prediction of atomic-level protein structure with a language model" — *Science* 379(6628)
-2. Notin et al. (2023) — ProteinGym: "Large-scale benchmarks for protein fitness prediction" — *NeurIPS*
-3. Stiffler et al. (2015) — "Evolvability as a function of purifying selection in TEM-1 β-lactamase" — *Cell* 160(5)
-4. Minasov et al. (2002) — PDB 1M40: "An ultrahigh resolution structure of TEM-1 β-lactamase" — *J. Am. Chem. Soc.* 124(19)
-5. Kabsch & Sander (1983) — DSSP: "Dictionary of protein secondary structure" — *Biopolymers* 22(12)
+2. Meier et al. (2021) — ESM-1v: "Language models enable zero-shot prediction of the effects of mutations on protein function" — *NeurIPS*
+3. Notin et al. (2023) — ProteinGym: "Large-scale benchmarks for protein fitness prediction" — *NeurIPS*
+4. Stiffler et al. (2015) — "Evolvability as a function of purifying selection in TEM-1 β-lactamase" — *Cell* 160(5)
+5. Minasov et al. (2002) — PDB 1M40: "An ultrahigh resolution structure of TEM-1 β-lactamase" — *J. Am. Chem. Soc.* 124(19)
+6. Kabsch & Sander (1983) — DSSP: "Dictionary of protein secondary structure" — *Biopolymers* 22(12)
 
 ---
 
