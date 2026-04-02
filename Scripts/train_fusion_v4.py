@@ -206,7 +206,7 @@ EPOCHS          = 100
 BATCH_SIZE      = 32
 NOISE_STD       = 0.01   # Gaussian noise on sequence embeddings only
 PATIENCE        = 15
-MODEL_SAVE_PATH = MODELS_DIR / "best_fusion_3modal.pt"
+MODEL_SAVE_PATH = MODELS_DIR / "best_fusion_v4.pt"
 
 
 # ── Training Loop ─────────────────────────────────────────────────────────────

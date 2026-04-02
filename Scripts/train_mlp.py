@@ -15,7 +15,9 @@ print(f"Training on: {device}")
 
 data_dir    = Path(__file__).parent.parent / "Data"
 results_dir = Path(__file__).parent.parent / "Results"
+models_dir  = Path(__file__).parent.parent / "Models"
 results_dir.mkdir(exist_ok=True)
+models_dir.mkdir(exist_ok=True)
 
 csv_path = data_dir / "BLAT_ECOLX_Stiffler_2015.csv"
 emb_path = data_dir / "beta_lactamase_esm2_embeddings.npy"
@@ -140,7 +142,7 @@ for epoch in range(epochs):
     # Save best checkpoint
     if val_rho > best_val_rho:
         best_val_rho = val_rho
-        torch.save(model.state_dict(), results_dir / "best_mlp_model.pt")
+        torch.save(model.state_dict(), models_dir / "best_mlp.pt")
 
     # Print progress
     if (epoch+1) % 5 == 0 or epoch == 0:
@@ -156,7 +158,7 @@ print("\n" + "="*50)
 print("Final Evaluation  (best checkpoint)")
 print("="*50)
 
-model.load_state_dict(torch.load(results_dir / "best_mlp_model.pt", weights_only=True))
+model.load_state_dict(torch.load(models_dir / "best_mlp.pt", weights_only=True))
 model.eval()
 with torch.no_grad():
     train_preds = model(X_train_t).cpu().numpy().flatten()

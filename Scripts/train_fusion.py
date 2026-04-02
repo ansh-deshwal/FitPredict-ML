@@ -16,7 +16,9 @@ print(f"Training on: {device}")
 # Points to the Data/ and Results/ folders regardless of where you run from
 script_dir  = Path(__file__).parent.parent / "Data"
 results_dir = Path(__file__).parent.parent / "Results"
+models_dir  = Path(__file__).parent.parent / "Models"
 results_dir.mkdir(exist_ok=True)
+models_dir.mkdir(exist_ok=True)
 
 # ── Load Data ─────────────────────────────────────────────────────────────────
 print("Loading data...")
@@ -198,7 +200,7 @@ for epoch in range(EPOCHS):
     # Unit 2: Early stopping
     if is_best:
         best_val_rho = val_rho
-        torch.save(model.state_dict(), results_dir / "best_fusion_model.pt")
+        torch.save(model.state_dict(), models_dir / "best_fusion_v1.pt")
         patience_counter = 0
     else:
         patience_counter += 1
@@ -212,7 +214,7 @@ print("\n" + "="*55)
 print("Final Evaluation  (best checkpoint)")
 print("="*55)
 
-model.load_state_dict(torch.load(results_dir / "best_fusion_model.pt", weights_only=True))
+model.load_state_dict(torch.load(models_dir / "best_fusion_v1.pt", weights_only=True))
 model.eval()
 with torch.no_grad():
     train_preds_final = model(X_train_t, S_train_t).cpu().numpy()
